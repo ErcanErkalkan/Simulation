@@ -373,12 +373,25 @@ class MainWindow(tk.Tk):
         # Draw communication lines
         self.draw_communication_lines()
 
-    def reset_simulation(self):
+    """def reset_simulation(self):
         self.simulation_engine.reset_simulation()
         self.simulation_running = False
         self.simulation_engine.simulation_running = False
         self.StartButton.config(text="Start")
         self.draw_canvas()
+        messagebox.showinfo("Reset", "Simulation has been reset.")"""
+    
+    def reset_simulation(self):   
+        self.simulation_engine = SimulationEngine()
+        self.simulation_running = False
+        self.real_drone_commands = queue.Queue()
+        self.real_drone_thread = None
+        self.initialize_components()
+        # Link GUI elements to simulation engine
+        self.simulation_engine.target_eval_mode = self.target_eval_mode
+        self.simulation_engine.threshold1_entry = self.threshold1_entry
+        self.simulation_engine.threshold2_entry = self.threshold2_entry
+        self.simulation_engine.simulation_time_entry = self.simulation_time_entry
         messagebox.showinfo("Reset", "Simulation has been reset.")
 
     def save_to_file(self):
@@ -532,6 +545,10 @@ class MainWindow(tk.Tk):
                 return
 
         elif self.target_eval_mode.get() == "revisit":
+            self.simulation_engine.target_eval_mode = self.target_eval_mode
+            self.simulation_engine.threshold1_entry = self.threshold1_entry
+            self.simulation_engine.threshold2_entry = self.threshold2_entry
+            self.simulation_engine.simulation_time_entry = self.simulation_time_entry
             # Stop if simulation time exceeds threshold
             elapsed_time = time.time() - self.simulation_engine.start_time
             max_simulation_time = float(self.simulation_time_entry.get())

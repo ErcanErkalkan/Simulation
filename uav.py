@@ -44,6 +44,7 @@ class UAV(Entity):
         self.target: Optional[Goal] = None
         self.my_leader: Optional["UAV"] = None
         self.my_slave_list: Set["UAV"] = set()  # Using a set for unique slaves
+        self.my_relay_list: Set["UAV"] = set()
         self.ground: Optional[Ground] = ground
 
         # Canvas item IDs for updating or binding events
@@ -65,11 +66,14 @@ class UAV(Entity):
             distance = direction_to_target.length()
             if distance < 1:  # If the UAV is close enough to the goal
                 self.pos = self.target.pos  # Snap to the goal
-                self.state = "Free"  # Update UAV state to Free
                 self.target.state = "Visited"  # Update Goal state to Visited
                 self.target.last_visited_time = time.time()
                 self.target = None  # Clear the target
-                self.delete_my_slave_list()
+                if self.state == "Leader":
+                    self.delete_my_slave_list()
+                elif self.state == "Ground_Leader":
+                    self.delete_my_relay_list()
+                self.state = "Free"  # Update UAV state to Free
             else:
                 self.pos += direction_to_target.normalize()
 
@@ -85,7 +89,7 @@ class UAV(Entity):
             self.pos = target_pos
         else:
             self.pos += direction_to_target.normalize()
-    
+
     # In UAV class
     def move_to_position(self, target_pos: Vector):
         """
@@ -93,7 +97,6 @@ class UAV(Entity):
         """
         next_pos = self.get_next_position(target_pos)
         self.pos = next_pos
-
 
     def move_to_ground(self):
         """
@@ -115,12 +118,12 @@ class UAV(Entity):
                 self.pos += direction_to_my_leader.normalize()
 
     def get_leader(self):
-        if self.state == "Slave":
+        if self.state == "Slave" or self.state == "Relay":
             return self.my_leader
         else:
             return None
 
-    def _delete_my_slave_list(self):
+    def delete_my_slave_list(self):
         """
         Clears all hierarchical relationships and sets the UAV state to "Free".
         """
@@ -128,16 +131,15 @@ class UAV(Entity):
             slave.state = "Free"
             slave.my_leader = None
         self.my_slave_list.clear()
-    
-        # In the UAV class
-    def delete_my_slave_list(self):
-        # Remove self from leader's slave list if applicable
-        if self.my_leader:
-            self.my_leader.my_slave_list.discard(self)
-            self.my_leader = None
-        # Clear own slave list
-        self.my_slave_list.clear()
 
+    def delete_my_relay_list(self):
+        """
+        Clears all hierarchical relationships and sets the UAV state to "Free".
+        """
+        for relay in self.my_relay_list:
+            relay.state = "Free"
+            relay.my_leader = None
+        self.my_slave_list.clear()
 
     def stop(self):
         self.running = False
@@ -151,7 +153,8 @@ class UAV(Entity):
         x, y = self.pos.x, self.pos.y
 
         # Determine the color and emoji based on the UAV state
-        fill_color = self.StateColors.get(self.state, "gray")  # Default color: gray
+        fill_color = self.StateColors.get(
+            self.state, "gray")  # Default color: gray
         uav_emoji = "🚁"  # Drone emoji
 
         # Draw the drone emoji
@@ -204,7 +207,8 @@ class UAV(Entity):
         Calculates the next position towards the target without moving the UAV.
         """
         # Calculate the direction vector towards the target
-        direction = Vector(target_pos.x - self.pos.x, target_pos.y - self.pos.y)
+        direction = Vector(target_pos.x - self.pos.x,
+                           target_pos.y - self.pos.y)
 
         # Normalize the direction vector to get unit vector
         distance = (direction.x**2 + direction.y**2) ** 0.5

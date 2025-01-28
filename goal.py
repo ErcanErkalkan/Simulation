@@ -19,11 +19,13 @@ class Goal(Entity):
         "Free": "red",
         "Assigned": "orange",
         "Visited": "green",
+        "Ground_Assigned": "black",
     }
 
     StateEmojis = {
         "Free": "❌",
         "Assigned": "⌛",
+        "Ground_Assigned": "⌛",
         "Visited": "✅",
     }
 

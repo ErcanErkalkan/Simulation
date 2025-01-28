@@ -31,6 +31,7 @@ class SimulationEngine:
         # Snapshot for rollback mechanism
         self._uav_snapshot = None
         self._goal_snapshot = None
+        self.counter = 0
 
     def add_goal(self, x: int, y: int):
         # Create a new goal object
@@ -220,17 +221,14 @@ class SimulationEngine:
         components = MatrixOperation.find_connected_components(
             adj_matrix, self.comm_thr
         )
-        if (
-            len(
-                MatrixOperation.find_connected_components(
-                    adj_matrix, self.comm_thr * 1.1
-                )
-            )
-            == 1
-        ):
-            self.reset_uavs(self.uavs)
-            self.reset_goals(self.goals)
-            self.relay_uavs = set()
+        if self.counter == 20:
+            if (len(MatrixOperation.find_connected_components(adj_matrix, self.comm_thr * 1.1)) == 1):
+                self.reset_uavs(self.uavs)
+                self.reset_goals(self.goals)
+                self.relay_uavs = set()
+                self.counter = 0
+        
+        self.counter += 1
 
         self.assign_uavs_to_goals()
 
@@ -297,18 +295,19 @@ class SimulationEngine:
 
     def reset_uavs(self, uavs: List[UAV]):
         for uav in uavs:
-            uav.delete_my_slave_list()
-            uav.state = "Free"
-            uav.my_leader = None
-            if uav.target:
-                uav.target.state = "Free"
-                uav.target = None
-            if hasattr(uav, "target_position"):
-                del uav.target_position
+            if uav.state != "Ground_Leader":
+                uav.delete_my_slave_list()
+                uav.state = "Free"
+                uav.my_leader = None
+                if uav.target:
+                    uav.target.state = "Free"
+                    uav.target = None
+                """if hasattr(uav, "target_position"):
+                    del uav.target_position"""
 
     def reset_goals(self, goals: List[Goal]):
         for goal in self.goals:
-            if goal.state != "Visited":  # Only reset unachieved goals
+            if goal.state != "Visited" and goal.state != "Ground_Assigned":  
                 goal.state = "Free"  # Reset goal state"
 
     def assign_relay(self):
@@ -556,7 +555,7 @@ class SimulationEngine:
         # Assign the UAV to the chosen goal
         best_uav.target = best_goal
         best_uav.state = "Ground_Leader"
-        best_goal.state = "Assigned"
+        best_goal.state = "Ground_Assigned"
 
         return best_uav
 
@@ -578,6 +577,220 @@ class SimulationEngine:
         return n_relay
 
     def allocate_relay_uavs_line(self, leader_uav: UAV, n_relay: int):
+        """
+        Allocate relay UAVs along the line between the central station and the leader UAV's target,
+        but using a Hungarian assignment to find the minimal total distance arrangement.
+        If necessary, we can also change who the final leader is among this set.
+        """
+
+        # 1) Construct the positions array.
+        # We create (n_relay + 1) waypoints, from ground to the target.
+        positions = []
+        for i in range(1, n_relay + 2):  # i=1..(n_relay+1)
+            position_factor = i / (n_relay + 1)
+            relay_pos = (
+                self.ground.pos
+                + (leader_uav.target.pos - self.ground.pos) * position_factor
+            )
+            positions.append(relay_pos)
+
+        # 'positions[-1]' is effectively close to 'leader_uav.target.pos'
+
+        # 2) Collect candidate UAVs.
+        # Originally, we used only free UAVs, but we also include 'leader_uav' so that
+        # we can change the leader if the Hungarian result is better with someone else.
+        candidate_uavs = [u for u in self.uavs if u.state == "Free"]
+        if leader_uav not in candidate_uavs:
+            candidate_uavs.append(leader_uav)
+
+        if len(candidate_uavs) < len(positions):
+            print("Not enough UAVs to fill all relay positions!")
+            return
+
+        # 3) Build the cost (distance) matrix.
+        import numpy as np
+        cost_matrix = np.zeros((len(candidate_uavs), len(positions)), dtype=float)
+        for i, uav in enumerate(candidate_uavs):
+            for j, pos in enumerate(positions):
+                dist = Distance.distance_between_positions(uav.pos, pos)
+                cost_matrix[i, j] = dist
+
+        # 4) Solve with Hungarian Algorithm (linear_sum_assignment).
+        from scipy.optimize import linear_sum_assignment
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        # row_ind[i], col_ind[i] means UAV 'i' is assigned to position 'j'.
+
+        # 5) Reset states (make them "Free") before assigning.
+        for u in candidate_uavs:
+            u.delete_my_slave_list()
+            u.state = "Free"
+            if hasattr(u, "target_position"):
+                del u.target_position
+
+        # The final position is positions[-1]. Anyone who gets this position becomes the new leader.
+        final_position_index = len(positions) - 1
+
+        # Assign states and target positions based on the matching result.
+        for i, uav_index in enumerate(row_ind):
+            assigned_pos_index = col_ind[i]
+            chosen_uav = candidate_uavs[uav_index]
+            chosen_pos = positions[assigned_pos_index]
+
+            if assigned_pos_index == final_position_index:
+                # The UAV assigned to the final waypoint becomes "Ground_Leader".
+                chosen_uav.state = "Ground_Leader"
+                chosen_uav.target_position = chosen_pos
+            else:
+                # Others become "Relay".
+                chosen_uav.state = "Relay"
+                chosen_uav.target_position = chosen_pos
+                chosen_uav.my_leader = None  # We’ll fix that below.
+
+        # 6) Determine who is the new leader and update my_leader relationships.
+        new_leader = None
+        for u in candidate_uavs:
+            if u.state == "Ground_Leader":
+                new_leader = u
+            break  # *Check indentation* (likely 'break' is inside the 'if' block.)
+
+        if new_leader:
+            new_leader.my_relay_list.clear()
+            for u in candidate_uavs:
+                if u is not new_leader and u.state == "Relay":
+                    u.my_leader = new_leader
+                    new_leader.my_relay_list.add(u)
+
+        # 7) Log the outcome.
+        print("Hungarian assignment done for relay positions.")
+        if new_leader and new_leader != leader_uav:
+            print(f"Leader changed! New leader: UAV {new_leader.uav_no}")
+        else:
+            print(f"Leader did not change, or stayed the same. Leader UAV: {leader_uav.uav_no}")
+
+    def allocate_relay_uavs_lineII(self, leader_uav: UAV, n_relay: int):
+        """
+        Allocate relay UAVs along the line between the central station and the leader UAV's target,
+        but using a Hungarian assignment to find the minimal total distance arrangement.
+        If necessary, we can also change who the final leader is among this set.
+        """
+
+        # 1) Hangi pozisyonları oluşturuyoruz?
+        # Örn. n_relay + 1 tane "ara nokta" (sonuncusu hedef)
+        # ground --> ... --> positions[-1] (hedef)
+        positions = []
+        for i in range(1, n_relay + 2):  # 1..(n_relay+1) => n_relay+1 adet
+            position_factor = i / (n_relay + 1)
+            relay_pos = (
+                self.ground.pos
+                + (leader_uav.target.pos - self.ground.pos) * position_factor
+            )
+            positions.append(relay_pos)
+
+        # Şimdi "positions" listesinde toplam (n_relay + 1) nokta var.
+        # positions[-1] = hedef konumu (aslında leader_uav.target.pos'a yakın).
+
+        # 2) Kullanılacak UAV listesi:
+        # Orijinal kodda "free_uavs" vardı, ama "lideri de değiştirebilirim" diyorsanız
+        # leader_uav da dahil edelim ki atamada o da bir pozisyona gidebilsin.
+        candidate_uavs = [u for u in self.uavs if u.state == "Free"]
+        if leader_uav not in candidate_uavs:
+            candidate_uavs.append(leader_uav)
+
+        # Eğer candidate_uavs sayısı positions sayısından azsa, atama mümkün değil
+        if len(candidate_uavs) < len(positions):
+            print("Not enough UAVs to fill all relay positions!")
+            return
+
+        # 3) Maliyet matrisi (cost_matrix) oluştur:
+        # satır = UAV, sütun = Pozisyon
+        import numpy as np
+
+        cost_matrix = np.zeros((len(candidate_uavs), len(positions)), dtype=float)
+        for i, uav in enumerate(candidate_uavs):
+            for j, pos in enumerate(positions):
+                dist = Distance.distance_between_positions(uav.pos, pos)
+                cost_matrix[i, j] = dist
+
+        # 4) Hungarian Algorithm (linear_sum_assignment) ile en düşük toplam maliyetli atama
+        from scipy.optimize import linear_sum_assignment
+
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+
+        # row_ind[i], col_ind[i] => i. eşleşme
+        # UAV i -> Pozisyon j
+
+        # 5) Atamaları uygula:
+        # Önce tüm candidate_uavs'i "Free" moduna çekebilirsiniz (veya relay'e)
+        # orijinal liderin de state'ini resetleyebilirsiniz.
+        # Bu proje mantığına göre "Slave" vb. olabilir. Temiz tutmak adına "Free" yapıyoruz:
+
+        for u in candidate_uavs:
+            # Sizin projede "Relay" demeden önce atamayı tam yapacağız
+            # yoksa "Free" kalsın:
+            u.delete_my_slave_list()
+            u.state = "Free"
+            if hasattr(u, "target_position"):
+                del u.target_position
+
+        # Artık atama döngüsü
+        # col_ind => her UAV'ye hangi position düştüyse
+        # "son" pozisyon -> yeni lider
+        final_position_index = len(positions) - 1  # hedef
+
+        for i, uav_index in enumerate(row_ind):
+            # row_ind ve col_ind aynı uzunlukta
+            assigned_pos_index = col_ind[i]
+            # 'uav_index' -> cost_matrix satırı
+            # candidate_uavs[uav_index] => gerçekte atadığımız UAV
+            # 'assigned_pos_index' -> cost_matrix sütunu
+            # positions[assigned_pos_index] => Hangi relay/goal pozisyonu
+
+            chosen_uav = candidate_uavs[uav_index]
+            chosen_pos = positions[assigned_pos_index]
+
+            if assigned_pos_index == final_position_index:
+                # Bu UAV final hedef pozisyonuna gidiyor => LIDER
+                chosen_uav.state = "Ground_Leader"  
+                # Hedef "Assigned" durumu korunsun
+                chosen_uav.target_position = chosen_pos
+            else:
+                # Bu UAV "relay" oluyor
+                chosen_uav.state = "Relay"
+                chosen_uav.target_position = chosen_pos
+                # Kimin lideri olacak? Mesela orijinal leader_uav'yi referans alabilirdiniz.
+                # Fakat "lidere" de değişebilir dediğimizden, "yeni" leader'ı bulmak:
+                #   Hungarian atama bittiğinde "Ground_Leader" state'e sahip kimse
+                #   bul ve my_leader yap:
+                # Bunu atama bittikten sonra da yapabilirsiniz (aşağıda).
+                # Geçici olarak "my_leader = None" diyelim:
+                chosen_uav.my_leader = None
+
+        # 6) Slave-list ilişkilerini düzelt:
+        #   Kim "Ground_Leader" olduysa, o 'leader' = next Uav
+        #   Diğer relay UAV'lerin my_leader'ını bu lidere bağlayabilirsiniz:
+        new_leader = None
+        for u in candidate_uavs:
+            if u.state == "Ground_Leader":
+                new_leader = u
+                # Orijinal leader'u bulup "my_slave_list" güncellemesi isterseniz silebilirsiniz
+            break
+
+        if new_leader:
+            new_leader.my_slave_list.clear()
+            for u in candidate_uavs:
+                if u is not new_leader and u.state == "Relay":
+                    u.my_leader = new_leader
+                    new_leader.my_slave_list.add(u)
+
+        # 7) Bilgi mesajı
+        print("Hungarian assignment done for relay positions.")
+        if new_leader and new_leader != leader_uav:
+            print(f"Lider değişti! Yeni lider: UAV {new_leader.uav_no}")
+        else:
+            print(f"Lider değişmedi veya aynı kaldı. Lider UAV: {leader_uav.uav_no}")
+
+
+    def allocate_relay_uavs_lineI(self, leader_uav: UAV, n_relay: int):
         """
         Allocate relay UAVs along the line between the central station and the leader UAV's target.
         Ensures relay UAVs are positioned only between the ground and the target.
