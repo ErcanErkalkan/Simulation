@@ -17,9 +17,11 @@ class UAV(Entity):
     NumberFont = ("Arial", 15)  # Font size for displaying the UAV number
 
     StateColors = {
-        "Free": "blue",  # Free state color
-        "Leader": "green",  # Leader state color
-        "Slave": "orange",  # Slave state color
+        "Free": "blue",
+        "Leader": "green",
+        "Slave": "orange",
+        "Relay": "purple",
+        "Ground_Leader": "red"
     }
 
     def __init__(
@@ -42,6 +44,7 @@ class UAV(Entity):
         self.uav_no: int = uav_no
         self.state: str = "Free"  # Possible states: "Free", "Leader", "Slave"
         self.target: Optional[Goal] = None
+        self.relay_position: Optional[Vector] = None
         self.my_leader: Optional["UAV"] = None
         self.my_slave_list: Set["UAV"] = set()  # Using a set for unique slaves
         self.my_relay_list: Set["UAV"] = set()
@@ -53,14 +56,12 @@ class UAV(Entity):
         self.running = False  # İş parçacığı kontrolü için bayrak
         self.speed = 1  # UAV's movement speed
 
-    def move_to_target(self, target: Optional[Goal] = None):
+    def move_to_target(self):
         """
         Moves the UAV toward a specified target or in its current direction.
 
         :param target: Target position as a Vector. If None, moves in its current direction.
         """
-        if target:
-            self.target = target
         if self.target:
             direction_to_target = self.target.pos - self.pos
             distance = direction_to_target.length()
@@ -73,22 +74,24 @@ class UAV(Entity):
                     self.delete_my_slave_list()
                 elif self.state == "Ground_Leader":
                     self.delete_my_relay_list()
+                    self.delete_my_slave_list()
                 self.state = "Free"  # Update UAV state to Free
             else:
                 self.pos += direction_to_target.normalize()
 
-    def move(self, target_pos: Vector):
+    def move_as_relay(self):
         """
         Moves the UAV toward the specified position.
 
         :param target_pos: The target position to move towards.
         """
-        direction_to_target = target_pos - self.pos
-        distance = direction_to_target.length()
-        if distance < 1:
-            self.pos = target_pos
-        else:
-            self.pos += direction_to_target.normalize()
+        if self.relay_position:
+            direction_to_target = self.relay_position - self.pos
+            distance = direction_to_target.length()
+            if distance < 1:
+                self.pos = self.relay_position
+            else:
+                self.pos += direction_to_target.normalize()
 
     # In UAV class
     def move_to_position(self, target_pos: Vector):
@@ -97,13 +100,6 @@ class UAV(Entity):
         """
         next_pos = self.get_next_position(target_pos)
         self.pos = next_pos
-
-    def move_to_ground(self):
-        """
-        Moves the UAV toward its associated ground station.
-        """
-        if self.ground:
-            self.move(self.ground.pos)
 
     def move_to_leader(self):
         """
@@ -139,7 +135,7 @@ class UAV(Entity):
         for relay in self.my_relay_list:
             relay.state = "Free"
             relay.my_leader = None
-        self.my_slave_list.clear()
+        self.my_relay_list.clear()
 
     def stop(self):
         self.running = False
@@ -199,6 +195,7 @@ class UAV(Entity):
             f"  Target: {self.target.pos if self.target else 'None'}\n"
             f"  Leader: UAV {self.my_leader.uav_no if self.my_leader else 'None'}\n"
             f"  Slaves: {[slave.uav_no for slave in self.my_slave_list]}\n"
+            f"  Relays: {[relay.uav_no for relay in self.my_relay_list]}\n"
             f"  Ground Station: {self.ground.pos if self.ground else 'None'}"
         )
 

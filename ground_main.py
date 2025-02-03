@@ -2,18 +2,19 @@
 import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from generate_uav import GenerateUAV
+import json
+import queue
+
 from simulation_engine import SimulationEngine
 from functions import MatrixOperation
 from uav import UAV
 from goal import Goal
 from ground import Ground
 from vector import Vector
-import json
-import queue
-from real_drone_thread import RealDroneThread
-from co_drone import co_Drone
 
+from co_drone import co_Drone
+from real_drone_move_thread import RealDroneMoveThread
+from generate_uav import GenerateUAV
 
 class MainWindow(tk.Tk):
     def __init__(self):
@@ -21,11 +22,15 @@ class MainWindow(tk.Tk):
         self.title("Heterogeneous Unmanned Network Simulation Environment V01")
         self.geometry("1381x763")
         self.resizable(False, False)
+        
+        # Ana motor
         self.simulation_engine = SimulationEngine()
         self.simulation_running = False
-        self.real_drone_commands = queue.Queue()
+        
         self.real_drone_thread = None
+        
         self.initialize_components()
+        
         # Link GUI elements to simulation engine
         self.simulation_engine.target_eval_mode = self.target_eval_mode
         self.simulation_engine.threshold1_entry = self.threshold1_entry
@@ -252,7 +257,9 @@ class MainWindow(tk.Tk):
             self.threshold2_entry.config(state="disabled")
             self.simulation_time_entry.config(state="disabled")
 
-    # İletişim eşiği değiştiğinde `simulation_engine`'de güncelleme yapmak için fonksiyon
+    # ------------------------------------------------------
+    #  FONKSİYONLAR
+    # ------------------------------------------------------
     def update_connection_threshold(self, value):
         try:
             self.simulation_engine.comm_thr = float(value)
@@ -301,14 +308,68 @@ class MainWindow(tk.Tk):
         try:
             uav_count = int(self.textBox1.get())
             if uav_count <= 0:
+                messagebox.showerror("Error", "UAV number must be a positive integer.")
+                return
+
+            # Tüm UAV'leri önce normal şekilde GenerateUAV ile oluşturuyoruz
+            # Rastgele veya single connected component mantığı
+            uavs_temp = GenerateUAV.run(
+                count=uav_count,
+                comm_thr=self.simulation_engine.comm_thr,
+                ground=self.simulation_engine.ground,
+                canvas_width=self.canvas.winfo_width(),
+                canvas_height=self.canvas.winfo_height(),
+            )
+
+            if self.use_co_drone_var.get():
+                # "Use CoDrone" seçiliyse, ilk UAV'i co_Drone tipine dönüştürüyoruz
+                if len(uavs_temp) < 1:
+                    messagebox.showwarning("Warning","No UAVs generated to replace with coDrone.")
+                else:
+                    # Mevcut ilk normal UAV'i al
+                    old_uav = uavs_temp[0]
+                    old_pos = old_uav.pos
+                    old_dir = old_uav.direction
+                    old_no  = old_uav.uav_no
+                    old_ground = old_uav.ground
+
+                    # co_Drone nesnesi
+                    co_uav = co_Drone(
+                        pos=old_pos,
+                        direction=old_dir,
+                        uav_no=old_no,
+                        ground=old_ground,
+                    )
+
+                    # Listenin ilk elemanını co_uav ile değiştir
+                    uavs_temp[0] = co_uav
+
+            # Tüm UAV'leri simulation_engine’e ekle
+            self.simulation_engine.uavs.extend(uavs_temp)
+
+            # UAV numaralarını güncelle
+            for i, uav in enumerate(self.simulation_engine.uavs, start=1):
+                uav.uav_no = i
+
+            # Çiz
+            self.draw_canvas()
+            messagebox.showinfo("Success", f"{uav_count} UAVs generated successfully!")
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input! Please enter a numeric value.")
+
+
+    def generate_uavs_(self):
+        try:
+            uav_count = int(self.textBox1.get())
+            if uav_count <= 0:
                 messagebox.showerror(
                     "Error", "UAV number must be a positive integer."
                 )
                 return
+            
             # Eğer işaretli ise ilk UAV co_Drone olsun
             if self.use_co_drone_var.get():
-                # co_Drone örneğini manuel oluşturup listeye ekliyoruz
-                                
+                # co_Drone örneğini manuel oluşturup listeye ekliyoruz                                
                 co_uav = co_Drone(
                     pos=Vector(50, 50),
                     uav_no=1,
@@ -372,26 +433,21 @@ class MainWindow(tk.Tk):
 
         # Draw communication lines
         self.draw_communication_lines()
-
-    """def reset_simulation(self):
-        self.simulation_engine.reset_simulation()
-        self.simulation_running = False
-        self.simulation_engine.simulation_running = False
-        self.StartButton.config(text="Start")
-        self.draw_canvas()
-        messagebox.showinfo("Reset", "Simulation has been reset.")"""
-    
+  
     def reset_simulation(self):   
         self.simulation_engine = SimulationEngine()
         self.simulation_running = False
+        # Thread ve komut kuyruğunu da sıfırlıyoruz
         self.real_drone_commands = queue.Queue()
         self.real_drone_thread = None
+        
         self.initialize_components()
         # Link GUI elements to simulation engine
         self.simulation_engine.target_eval_mode = self.target_eval_mode
         self.simulation_engine.threshold1_entry = self.threshold1_entry
         self.simulation_engine.threshold2_entry = self.threshold2_entry
         self.simulation_engine.simulation_time_entry = self.simulation_time_entry
+        
         messagebox.showinfo("Reset", "Simulation has been reset.")
 
     def save_to_file(self):
@@ -542,6 +598,7 @@ class MainWindow(tk.Tk):
                 self.StartButton.config(text="Start")
                 messagebox.showinfo("Simulation Complete",
                                     "All goals have been visited.")
+                self.stop_simulation()  # Drone iner, simülasyon biter
                 return
 
         elif self.target_eval_mode.get() == "revisit":
@@ -558,34 +615,51 @@ class MainWindow(tk.Tk):
                 self.StartButton.config(text="Start")
                 messagebox.showinfo("Simulation Complete",
                                     "Simulation time has elapsed.")
+                self.stop_simulation()  # Drone iner, simülasyon biter
                 return
 
         self.after(1, self.move_uavs)
 
     def start_simulation(self):
         if not self.simulation_running:
+            # Eğer ilk UAV co_Drone ise, bağlan ve kalk
+            if self.simulation_engine.uavs and isinstance(self.simulation_engine.uavs[0], co_Drone):
+                co_drone_uav = self.simulation_engine.uavs[0]       
+                self.real_drone_thread = RealDroneMoveThread(
+                    co_drone_uav=co_drone_uav,
+                    update_interval=1.0,
+                )
+                self.real_drone_thread.start()                
+            else:
+                print("[DEBUG] No co_Drone found to start real_drone_thread!")
+            time.sleep(1)  # Drone'un havalanmasını bekleme süresi
             self.simulation_running = True
             self.simulation_engine.simulation_running = True
             self.simulation_engine.start_time = time.time()  # Initialize start time
             self.StartButton.config(text="Stop")
-
-            # Eğer ilk UAV co_Drone ise, bağlan ve kalk
-            if self.simulation_engine.uavs and isinstance(self.simulation_engine.uavs[0], co_Drone):
-                co_drone_uav = self.simulation_engine.uavs[0]
-                co_drone_uav.connect()
-                co_drone_uav.takeoff()
-
-        # UAV'leri hareket ettirmeye başla
+            # UAV'leri hareket ettirmeye başla
             self.move_uavs()
         else:
             self.simulation_running = False
             self.simulation_engine.simulation_running = False
             self.StartButton.config(text="Start")
             # Eğer ilk UAV co_Drone ise, in ve bağlantıyı kes
-            if self.simulation_engine.uavs and isinstance(self.simulation_engine.uavs[0], co_Drone):
-                co_drone_uav = self.simulation_engine.uavs[0]
-                co_drone_uav.land()
-                co_drone_uav.disconnect()
+                    # Durdur RealDroneDirectThread
+            if self.real_drone_thread:
+                self.real_drone_thread.stop()
+                self.real_drone_thread.join()
+                self.real_drone_thread = None
+
+    
+    def stop_simulation(self):
+        self.simulation_running = False
+        self.simulation_engine.simulation_running = False
+
+        # Durdur RealDroneDirectThread
+        if self.real_drone_thread:
+            self.real_drone_thread.stop()
+            self.real_drone_thread.join()
+            self.real_drone_thread = None
 
     def run(self):
         self.mainloop()
