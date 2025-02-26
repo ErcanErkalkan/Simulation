@@ -14,6 +14,8 @@ from vector import Vector
 
 from co_drone import co_Drone
 from real_drone_move_thread import RealDroneMoveThread
+from tello import Tello_Drone
+from tello_drone_move_thread import TelloDroneMoveThread
 from generate_uav import GenerateUAV
 
 class MainWindow(tk.Tk):
@@ -28,6 +30,7 @@ class MainWindow(tk.Tk):
         self.simulation_running = False
         
         self.real_drone_thread = None
+        self.tello_drone_thread = None
         
         self.initialize_components()
         
@@ -164,7 +167,7 @@ class MainWindow(tk.Tk):
         tk.Label(self.groupBox3, text="UAV Number").place(x=7, y=5)
         self.textBox1 = tk.Entry(self.groupBox3)
         self.textBox1.place(x=134, y=5, width=98)
-
+        #co_drone
         self.use_co_drone_var = tk.BooleanVar(value=False)  # Varsayılan False
         self.co_drone_check = tk.Checkbutton(
             self.groupBox3,
@@ -172,7 +175,15 @@ class MainWindow(tk.Tk):
             variable=self.use_co_drone_var
         )
         self.co_drone_check.place(x=10, y=25)
-
+        #tello_drone
+        self.use_tello_drone_var = tk.BooleanVar(value=False)  # Varsayılan False
+        self.tello_drone_check = tk.Checkbutton(
+            self.groupBox3,
+            text="Use TelloDrone",
+            variable=self.use_tello_drone_var
+        )
+        self.tello_drone_check.place(x=120, y=25)
+        ############################
         self.UAVGenerate = tk.Button(
             self.groupBox3, text="Generate", command=self.generate_uavs
         )
@@ -311,8 +322,7 @@ class MainWindow(tk.Tk):
                 messagebox.showerror("Error", "UAV number must be a positive integer.")
                 return
 
-            # Tüm UAV'leri önce normal şekilde GenerateUAV ile oluşturuyoruz
-            # Rastgele veya single connected component mantığı
+            # Generate the UAVs normally
             uavs_temp = GenerateUAV.run(
                 count=uav_count,
                 comm_thr=self.simulation_engine.comm_thr,
@@ -321,41 +331,75 @@ class MainWindow(tk.Tk):
                 canvas_height=self.canvas.winfo_height(),
             )
 
-            if self.use_co_drone_var.get():
-                # "Use CoDrone" seçiliyse, ilk UAV'i co_Drone tipine dönüştürüyoruz
-                if len(uavs_temp) < 1:
-                    messagebox.showwarning("Warning","No UAVs generated to replace with coDrone.")
+            # Check which drone types are selected:
+            co_selected = self.use_co_drone_var.get()
+            tello_selected = self.use_tello_drone_var.get()
+
+            if co_selected and tello_selected:
+                # If both are selected: first UAV becomes CoDrone, second becomes TelloDrone
+                if len(uavs_temp) < 2:
+                    messagebox.showwarning("Warning", "Not enough UAVs generated to replace with both CoDrone and TelloDrone.")
                 else:
-                    # Mevcut ilk normal UAV'i al
-                    old_uav = uavs_temp[0]
-                    old_pos = old_uav.pos
-                    old_dir = old_uav.direction
-                    old_no  = old_uav.uav_no
-                    old_ground = old_uav.ground
-
-                    # co_Drone nesnesi
+                    # Replace first UAV with CoDrone
+                    old_uav_co = uavs_temp[0]
                     co_uav = co_Drone(
-                        pos=old_pos,
-                        direction=old_dir,
-                        uav_no=old_no,
-                        ground=old_ground,
+                        pos=old_uav_co.pos,
+                        direction=old_uav_co.direction,
+                        uav_no=old_uav_co.uav_no,
+                        ground=old_uav_co.ground,
                     )
+                    uavs_temp[0] = co_uav
+                    # Replace second UAV with TelloDrone
+                    old_uav_tello = uavs_temp[1]
+                    tello_uav = Tello_Drone(
+                        pos=old_uav_tello.pos,
+                        direction=old_uav_tello.direction,
+                        uav_no=old_uav_tello.uav_no,
+                        ground=old_uav_tello.ground,
+                    )
+                    uavs_temp[1] = tello_uav
 
-                    # Listenin ilk elemanını co_uav ile değiştir
+            elif co_selected:
+                # Only CoDrone is selected; replace the first UAV with CoDrone
+                if len(uavs_temp) < 1:
+                    messagebox.showwarning("Warning", "No UAVs generated to replace with CoDrone.")
+                else:
+                    old_uav = uavs_temp[0]
+                    co_uav = co_Drone(
+                        pos=old_uav.pos,
+                        direction=old_uav.direction,
+                        uav_no=old_uav.uav_no,
+                        ground=old_uav.ground,
+                    )
                     uavs_temp[0] = co_uav
 
-            # Tüm UAV'leri simulation_engine’e ekle
+            elif tello_selected:
+                # Only TelloDrone is selected; replace the first UAV with TelloDrone
+                if len(uavs_temp) < 1:
+                    messagebox.showwarning("Warning", "No UAVs generated to replace with TelloDrone.")
+                else:
+                    old_uav = uavs_temp[0]
+                    tello_uav = Tello_Drone(
+                        pos=old_uav.pos,
+                        direction=old_uav.direction,
+                        uav_no=old_uav.uav_no,
+                        ground=old_uav.ground,
+                    )
+                    uavs_temp[0] = tello_uav
+
+            # Add all UAVs to the simulation engine
             self.simulation_engine.uavs.extend(uavs_temp)
 
-            # UAV numaralarını güncelle
+            # Update UAV numbers
             for i, uav in enumerate(self.simulation_engine.uavs, start=1):
                 uav.uav_no = i
 
-            # Çiz
+            # Redraw the canvas and display success message
             self.draw_canvas()
             messagebox.showinfo("Success", f"{uav_count} UAVs generated successfully!")
         except ValueError:
             messagebox.showerror("Error", "Invalid input! Please enter a numeric value.")
+
 
 
     def generate_uavs_(self):
@@ -613,42 +657,69 @@ class MainWindow(tk.Tk):
                 self.simulation_running = False
                 self.simulation_engine.simulation_running = False
                 self.StartButton.config(text="Start")
+                self.stop_simulation()  # Drone iner, simülasyon biter
                 messagebox.showinfo("Simulation Complete",
                                     "Simulation time has elapsed.")
-                self.stop_simulation()  # Drone iner, simülasyon biter
+                
                 return
 
         self.after(1, self.move_uavs)
 
     def start_simulation(self):
         if not self.simulation_running:
-            # Eğer ilk UAV co_Drone ise, bağlan ve kalk
-            if self.simulation_engine.uavs and isinstance(self.simulation_engine.uavs[0], co_Drone):
-                co_drone_uav = self.simulation_engine.uavs[0]       
+            # Search for specialized drones anywhere in the UAV list
+            co_drone_uav = None
+            tello_drone_uav = None
+
+            for uav in self.simulation_engine.uavs:
+                if isinstance(uav, co_Drone) and co_drone_uav is None:
+                    co_drone_uav = uav
+                elif isinstance(uav, Tello_Drone) and tello_drone_uav is None:
+                    tello_drone_uav = uav
+
+            # Start the RealDroneMoveThread if a co_Drone was found
+            if co_drone_uav:
                 self.real_drone_thread = RealDroneMoveThread(
                     co_drone_uav=co_drone_uav,
                     update_interval=1.0,
                 )
-                self.real_drone_thread.start()                
+                self.real_drone_thread.start()
             else:
-                print("[DEBUG] No co_Drone found to start real_drone_thread!")
-            time.sleep(1)  # Drone'un havalanmasını bekleme süresi
+                print("[DEBUG] No co_Drone found to start RealDroneMoveThread!")
+
+            # Start the TelloDroneMoveThread if a Tello_Drone was found
+            if tello_drone_uav:
+                self.tello_drone_thread = TelloDroneMoveThread(
+                    tello_drone_uav=tello_drone_uav,
+                    update_interval=1.0,
+                )
+                self.tello_drone_thread.start()
+            else:
+                print("[DEBUG] No Tello_Drone found to start TelloDroneMoveThread!")
+
+            time.sleep(5)  # Wait for the drone(s) to take off
             self.simulation_running = True
             self.simulation_engine.simulation_running = True
             self.simulation_engine.start_time = time.time()  # Initialize start time
             self.StartButton.config(text="Stop")
-            # UAV'leri hareket ettirmeye başla
+            # Start moving the UAVs
             self.move_uavs()
         else:
+            # Stop simulation
             self.simulation_running = False
             self.simulation_engine.simulation_running = False
             self.StartButton.config(text="Start")
-            # Eğer ilk UAV co_Drone ise, in ve bağlantıyı kes
-                    # Durdur RealDroneDirectThread
+            # Stop the co_Drone thread if it exists
             if self.real_drone_thread:
                 self.real_drone_thread.stop()
                 self.real_drone_thread.join()
                 self.real_drone_thread = None
+            # Stop the Tello_Drone thread if it exists
+            if self.tello_drone_thread:
+                self.tello_drone_thread.stop()
+                self.tello_drone_thread.join()
+                self.tello_drone_thread = None
+
 
     
     def stop_simulation(self):
@@ -660,6 +731,12 @@ class MainWindow(tk.Tk):
             self.real_drone_thread.stop()
             self.real_drone_thread.join()
             self.real_drone_thread = None
+        
+        # Stop the Tello_Drone thread if it exists
+        if self.tello_drone_thread:
+            self.tello_drone_thread.stop()
+            self.tello_drone_thread.join()
+            self.tello_drone_thread = None
 
     def run(self):
         self.mainloop()

@@ -13,12 +13,15 @@ from generate_goal import GenerateGoal
 from generate_uav import GenerateUAV
 from valuation import Valuation
 import numpy as np
+import os
 
 # Gerçek drone tanıması
 from co_drone import co_Drone  # <-- Ekle
+from SimulationLogger import SimulationLogger
 
 
 class SimulationEngine:
+    
     def __init__(self, comm_thr=200):
         self.comm_thr = comm_thr
         self.goals: List[Goal] = []
@@ -32,6 +35,11 @@ class SimulationEngine:
         self.threshold2_entry = None  # Will be set from MainWindow
         self.simulation_time_entry = None  # Will be set from MainWindow
         self.counter = 0
+        self.logger = SimulationLogger()  # Initialize the logger
+        self.network_disconnects = 0  # Track disconnections
+        self.relay_assignments = 0  # Track relay interventions
+        self.leader_changes = 0  # Track leader handovers
+        
 
     def add_goal(self, x: int, y: int):
         # Create a new goal object
@@ -336,6 +344,10 @@ class SimulationEngine:
 
             if len(components) > 1:
                 self.assign_relay()
+                self.network_disconnects += 1
+                self.logger.log(f"Network fragmentation detected! Attempting relay intervention #{self.network_disconnects}")
+                self.relay_assignments += 1
+                self.logger.log(f"Relay UAVs deployed! Total relay interventions: {self.relay_assignments}")
 
             for uav in self.uavs:
                 if uav.state in ["Leader", "Ground_Leader"] and uav.target:

@@ -41,8 +41,8 @@ class RealDroneMoveThread(threading.Thread):
             #if abs(dy) < 10: dy = 0
 
             # 5) Pitch ve Roll değerlerini normalize et
-            pitch = max(-30, min(30, int(dy / 10)))  # İleri / geri hareket
-            roll = max(-30, min(30, int(dx / 10)))   # Sağa / sola hareket
+            pitch = max(-30, min(30, int(dy / 2)))  # İleri / geri hareket
+            roll = max(-30, min(30, int(dx / 2)))   # Sağa / sola hareket
 
             print(f"[RealDroneMoveThread] dx={dx:.1f}, dy={dy:.1f} => pitch={pitch}, roll={roll}")
 

@@ -5,7 +5,7 @@ from typing import Optional
 from vector import Vector
 from ground import Ground
 
-class co_Drone(UAV):
+class Tello_Drone(UAV):
     def __init__(
         self,
         pos: Optional[Vector] = None,
