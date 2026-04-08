@@ -101,7 +101,11 @@ class ConnectivityAwareAlgorithm(SimulationAlgorithm):
         uav: UavView,
         target_position: Position,
     ) -> bool:
-        next_position = self.get_next_position(uav.position, target_position)
+        next_position = self.get_next_position(
+            uav.position,
+            target_position,
+            uav.speed,
+        )
         positions = [
             next_position if candidate.id == uav.id else candidate.position
             for candidate in context.uavs

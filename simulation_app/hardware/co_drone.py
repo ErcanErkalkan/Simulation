@@ -1,5 +1,5 @@
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 try:
     from codrone_edu.drone import Drone
@@ -10,6 +10,9 @@ from simulation_app.domain.goal import Goal
 from simulation_app.domain.ground import Ground
 from simulation_app.domain.uav import UAV
 from simulation_app.domain.vector import Vector
+
+if TYPE_CHECKING:
+    import queue
 
 
 class CoDroneDependencyError(RuntimeError):
@@ -25,17 +28,7 @@ class co_Drone(UAV):
         ground: Optional[Ground] = None,
         command_queue: Optional["queue.Queue"] = None,
     ):
-        """
-        Initializes a CoDrone UAV with additional drone-specific functionality.
-
-        :param pos: Position of the UAV as a Vector.
-        :param direction: Direction of the UAV as a Vector.
-        :param uav_no: Unique identifier for the UAV.
-        :param ground: Reference to the Ground object.
-        """
         super().__init__(pos, direction, uav_no, ground)
-
-        # Initialize the CoDrone-specific attributes
         self.drone = Drone() if Drone is not None else None
         self.connected = False
         self.command_queue = command_queue
@@ -46,163 +39,99 @@ class co_Drone(UAV):
                 "codrone_edu is not installed. Real drone control is unavailable."
             )
 
-    def connect(self, port: Optional[str] = None):
-        """
-        Connects the CoDrone to the specified port or automatically detects the port.
+    def connect(self, port: Optional[str] = None) -> None:
+        if self.connected:
+            return
+        self._require_driver()
+        print("[co_Drone] Connecting...")
+        if port:
+            self.drone.pair(port_name=port)
+        else:
+            self.drone.pair()
+        self.connected = True
+        print("[co_Drone] Connected.")
 
-        :param port: Port name as a string (e.g., 'COM6'). If None, automatically detects the port.
-        """
+    def disconnect(self) -> None:
         if not self.connected:
-            self._require_driver()
-            print("Connecting to CoDrone...")
-            if port:
-                self.drone.pair(port_name=port)
-            else:
-                self.drone.pair()
-            self.connected = True
-            print("Connected to CoDrone.")
+            return
+        print("[co_Drone] Disconnecting drone.")
+        self.drone.close()
+        self.connected = False
 
-    def disconnect(self):
-        """
-        Disconnects the CoDrone.
-        """
+    def takeoff(self) -> None:
         if self.connected:
-            print("Disconnecting CoDrone...")
-            self.drone.close()
-            self.connected = False
-            print("CoDrone disconnected.")
-
-    def takeoff(self):
-        """
-        Commands the drone to take off.
-        """
-        if self.connected:
-            print(f"Drone {self.uav_no} taking off...")
+            print("[co_Drone] Taking off.")
             self.drone.takeoff()
         else:
-            print(f"Drone {self.uav_no} is not connected. Cannot take off.")
+            print("[co_Drone] Not connected, cannot takeoff.")
 
-    def land(self):
-        """
-        Commands the drone to land.
-        """
+    def land(self) -> None:
         if self.connected:
-            print(f"Drone {self.uav_no} landing...")
+            print("[co_Drone] Landing.")
             self.drone.land()
         else:
             print(f"Drone {self.uav_no} is not connected. Cannot land.")
 
-    def move_to_real(self, target_pos: Vector, velocity: float = 0.5):
-        """
-        Moves the drone to the specified target position using absolute positioning.
-
-        :param target_pos: The target position as a Vector.
-        :param velocity: The velocity of the movement (default: 0.5 m/s).
-        """
+    def move_to_real(self, target_pos: Vector, velocity: float = 0.5) -> None:
         if not self.connected:
             print(f"Drone {self.uav_no} is not connected. Cannot move.")
             return
 
-        print(f"Drone {self.uav_no} moving to position: {target_pos}")
-        target_x = target_pos.x
-        target_y = target_pos.y
-        target_z = 1  # Default height in meters (adjust as needed)
-        print(target_x, target_y)
         self.drone.send_absolute_position(
-            positionX=(target_x / 100),  # Convert cm to meters
-            positionY=(target_y / 100),  # Convert cm to meters
-            positionZ=target_z,         # Fixed height
+            positionX=(target_pos.x / 100),
+            positionY=(target_pos.y / 100),
+            positionZ=1,
             velocity=velocity,
             heading=0,
             rotationalVelocity=0,
         )
 
-    def move_to_target(self, target: Optional[Goal] = None):
-        """
-        Moves the UAV toward a specified target or in its current direction.
-
-        :param target: Target position as a Vector. If None, moves in its current direction.
-        """
-        if target:
+    def move_to_target(self, target: Optional[Goal] = None) -> None:
+        if target is not None:
             self.target = target
-        if self.target:
-            direction_to_target = self.target.pos - self.pos
-            distance = direction_to_target.length()
-            if distance < 1:  # If the UAV is close enough to the goal
-                self.pos = self.target.pos  # Snap to the goal
-                self.state = "Free"  # Update UAV state to Free
-                self.target.state = "Visited"  # Update Goal state to Visited
-                self.target.last_visited_time = time.time()
-                self.target = None  # Clear the target
-                self.delete_my_slave_list()
-            else:
-                # Here we only simulate the position by approaching in small steps
-                step = direction_to_target.normalize()
-                self.pos += step
-                if self.connected and self.command_queue:
-                    self.command_queue.put({
-                        "type": "MOVE_TO",
-                        "target_pos": self.pos,
-                        "velocity": 0.5
-                    })
-
-    def move(self, target_pos: Vector):
-        """
-        Moves the UAV toward the specified position.
-
-        :param target_pos: The target position to move towards.
-        """
-        direction_to_target = target_pos - self.pos
-        distance = direction_to_target.length()
-        if distance < 1:
-            self.pos = target_pos
-        else:
-            step = direction_to_target.normalize()
-            self.pos += step
-            if self.connected and self.command_queue:
-                self.command_queue.put({
-                    "type": "MOVE_TO",
-                    "target_pos": self.pos,
-                    "velocity": 0.5
-                })
-
-    def move_to_position(self, target_pos: Vector):
-        """
-        Move the UAV towards a specified position.
-        """
-        next_pos = self.get_next_position(target_pos)
-        self.pos = next_pos
-        if self.connected and self.command_queue:
-            self.command_queue.put({
-                "type": "MOVE_TO",
-                "target_pos": next_pos,
-                "velocity": 0.5
-            })
-
-    def move_to_ground(self):
-        """
-        Moves the UAV toward its associated ground station.
-        """
-        if self.ground:
-            self.move(self.ground.pos)
-
-    def move_to_leader(self):
-        """
-        Makes the UAV follow its leader, if one exists.
-        """
-        if not self.my_leader:
+        if self.target is None:
             return
 
-        direction_to_my_leader = self.my_leader.pos - self.pos
-        distance = direction_to_my_leader.length()
-        if distance < 1:  # If the UAV is close enough to the leader
-            self.pos = self.my_leader.pos  # Snap to the leader's position
-        else:
-            step = direction_to_my_leader.normalize()
-            self.pos += step
-            if self.connected and self.command_queue:
-                self.command_queue.put({
+        next_pos = self.get_next_position(self.target.pos)
+        reached_target = next_pos == self.target.pos
+        self._move_to_simulated_position(next_pos)
+
+        if not reached_target:
+            return
+
+        was_ground_leader = self.state == "Ground_Leader"
+        self.state = "Free"
+        self.target.state = "Visited"
+        self.target.last_visited_time = time.time()
+        self.target = None
+        if was_ground_leader:
+            self.delete_my_relay_list()
+        self.delete_my_slave_list()
+
+    def move(self, target_pos: Vector) -> None:
+        self._move_to_simulated_position(self.get_next_position(target_pos))
+
+    def move_to_position(self, target_pos: Vector) -> None:
+        self._move_to_simulated_position(self.get_next_position(target_pos))
+
+    def move_to_ground(self) -> None:
+        if self.ground is not None:
+            self.move(self.ground.pos)
+
+    def move_to_leader(self) -> None:
+        if self.my_leader is None:
+            return
+        self._move_to_simulated_position(self.get_next_position(self.my_leader.pos))
+
+    def _move_to_simulated_position(self, next_pos: Vector) -> None:
+        if next_pos == self.pos:
+            return
+        self.pos = next_pos
+        if self.connected and self.command_queue:
+            self.command_queue.put(
+                {
                     "type": "MOVE_TO",
-                    "target_pos": self.pos,
-                    "velocity": 0.5
-                })
+                    "target_pos": next_pos,
+                    "velocity": 0.5,
+                }
+            )

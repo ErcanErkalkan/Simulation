@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the associated paper and (optionally) this repository."
+title: "Simulation Environment for Return-Visit-Aware FANET Routing (Central Station)"
+type: software
+authors:
+  - family-names: Erkalkan
+    given-names: Ercan
+repository-code: "https://github.com/ErcanErkalkan/Simulation"
+url: "https://github.com/ErcanErkalkan/Simulation"
+license: MIT
+preferred-citation:
+  type: article
+  title: "Addressing the Return Visit Challenge in Autonomous Flying Ad Hoc Networks Linked to a Central Station"
+  authors:
+    - family-names: Erkalkan
+      given-names: Ercan
+    - family-names: Topuz
+      given-names: Vedat
+    - family-names: Buldu
+      given-names: Ali
+  journal: "Sensors"
+  year: 2024
+  volume: 24
+  issue: 23
+  pages: "7859"
+  doi: "10.3390/s24237859"

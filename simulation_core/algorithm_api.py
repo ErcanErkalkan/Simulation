@@ -36,6 +36,7 @@ class UavView:
     position: Position
     state: str
     uav_type: str
+    speed: float
     target_goal_id: Optional[int]
     leader_id: Optional[int]
     relay_target: Optional[Position]

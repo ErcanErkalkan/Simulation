@@ -117,7 +117,8 @@ class SimulationEngine:
         self.algorithm.reset()
 
     def start_simulation(self) -> None:
-        self.get_runtime_config()
+        config = self.get_runtime_config()
+        self._apply_runtime_config(config)
         self.simulation_running = True
         self.start_time = time.time()
         self.algorithm.reset()
@@ -130,6 +131,7 @@ class SimulationEngine:
             return None
 
         config = self.get_runtime_config()
+        self._apply_runtime_config(config)
         current_time = time.time()
 
         if config.target_eval_mode == "revisit" and self.start_time is not None:
@@ -174,6 +176,7 @@ class SimulationEngine:
                 position=Position.from_vector(uav.pos),
                 state=uav.state,
                 uav_type=uav.__class__.__name__,
+                speed=float(getattr(uav, "speed", config.uav_speed)),
                 target_goal_id=uav.target.goal_no if uav.target else None,
                 leader_id=uav.my_leader.uav_no if uav.my_leader else None,
                 relay_target=(
@@ -203,6 +206,10 @@ class SimulationEngine:
             goals=goals,
             ground=ground,
         )
+
+    def _apply_runtime_config(self, config: SimulationConfig) -> None:
+        for uav in self.environment.uavs:
+            uav.speed = float(config.uav_speed)
 
     def _apply_plan(self, plan: AlgorithmPlan) -> None:
         if plan.clear_uav_roles:

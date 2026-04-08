@@ -1,19 +1,18 @@
 # Heterogeneous Network Simulation
 
-Bu proje, UAV ve hedef nesneleri uzerinde calisan bir simülasyon cekirdegi ile
-eklenebilir algoritma mimarisini ayirir.
+Bu proje, simülasyon çekirdeğini algoritmalardan ayıran paket yapısına sahiptir.
 
-## Klasor yapisi
+## Klasör Yapısı
 
-- `simulation_core/`: cekirdek simülasyon motoru, algoritma arayuzu, registry
-- `simulation_app/`: domain nesneleri, yardimci moduller, UI, donanim adaptörleri
-- `algorithms/`: yerlesik algoritmalar
-- `user_algorithms/`: kullanici tarafindan eklenen algoritmalar
-- `tests/`: `unittest` tabanli regresyon testleri
+- `simulation_core/`: çekirdek motor, config, environment ve algoritma API
+- `simulation_app/`: domain nesneleri, UI, yardımcı modüller ve donanım adaptörleri
+- `algorithms/`: yerleşik algoritmalar
+- `user_algorithms/`: kullanıcı tarafından eklenen algoritmalar
+- `tests/`: regresyon testleri
 
-## Calistirma
+## Çalıştırma
 
-Arayuz:
+Arayüz:
 
 ```bash
 python ground_main.py
@@ -31,16 +30,7 @@ Testler:
 python -m unittest -v
 ```
 
-## Yeni algoritma ekleme
+## Notlar
 
-Yeni bir algoritma icin `user_algorithms/` altina bir `*.py` dosyasi ekleyin.
-Kullanilacak sabit arayuz `simulation_api.py` icindedir.
-
-Hazir ornek:
-
-- `user_algorithms/example_user_algorithm.py`
-
-## Opsiyonel donanim bagimliliklari
-
-- CoDrone icin: `codrone-edu`
-- Tello icin: `djitellopy`, `opencv-python`
+- UI içindeki `Speed` alanı, UAV'lerin her simülasyon adımında kaç birim ilerleyeceğini belirler.
+- CoDrone için `codrone-edu`, Tello için `djitellopy` gerekir.

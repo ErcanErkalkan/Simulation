@@ -237,6 +237,11 @@ class MainWindow(tk.Tk):
         self.simulation_time_entry.place(x=226, y=80, width=50)
         self.simulation_time_entry.insert(0, "100")
 
+        tk.Label(self.groupBox8, text="Speed").place(x=286, y=80)
+        self.uav_speed_entry = tk.Entry(self.groupBox8)
+        self.uav_speed_entry.place(x=334, y=80, width=36)
+        self.uav_speed_entry.insert(0, "5")
+
         update_threshold_entries()
 
     def populate_algorithms(self) -> None:
@@ -272,6 +277,7 @@ class MainWindow(tk.Tk):
             threshold1=float(self.threshold1_entry.get()),
             threshold2=float(self.threshold2_entry.get()),
             simulation_time=float(self.simulation_time_entry.get()),
+            uav_speed=float(self.uav_speed_entry.get()),
         )
 
     def update_connection_threshold(self, value):
@@ -402,11 +408,16 @@ class MainWindow(tk.Tk):
         if not file_path:
             return
 
-        data = self.simulation_engine.to_dict()
-        data["CommThreshold"] = self.simulation_engine.comm_thr
-        data["Algorithm"] = self.simulation_engine.get_current_algorithm_name()
-
         try:
+            data = self.simulation_engine.to_dict()
+            data["CommThreshold"] = self.simulation_engine.comm_thr
+            data["Algorithm"] = self.simulation_engine.get_current_algorithm_name()
+            config = self.build_simulation_config()
+            data["TargetEvalMode"] = config.target_eval_mode
+            data["Threshold1"] = config.threshold1
+            data["Threshold2"] = config.threshold2
+            data["SimulationTime"] = config.simulation_time
+            data["UavSpeed"] = config.uav_speed
             with open(file_path, "w", encoding="utf-8") as file:
                 json.dump(data, file, indent=4)
             messagebox.showinfo("Success", f"Simulation data saved to {file_path}.")
@@ -428,6 +439,12 @@ class MainWindow(tk.Tk):
 
             if "CommThreshold" in data:
                 self.threshold_scale.set(float(data["CommThreshold"]))
+            if "TargetEvalMode" in data:
+                self.target_eval_mode.set(str(data["TargetEvalMode"]))
+            self.set_entry_value(self.threshold1_entry, data.get("Threshold1"))
+            self.set_entry_value(self.threshold2_entry, data.get("Threshold2"))
+            self.set_entry_value(self.simulation_time_entry, data.get("SimulationTime"))
+            self.set_entry_value(self.uav_speed_entry, data.get("UavSpeed"))
 
             algorithm_name = data.get("Algorithm")
             if algorithm_name:
@@ -528,6 +545,18 @@ class MainWindow(tk.Tk):
         for uav in uavs:
             if isinstance(uav, co_Drone):
                 uav.command_queue = command_queue
+
+    @staticmethod
+    def set_entry_value(entry, value) -> None:
+        if value is None:
+            return
+        previous_state = entry.cget("state")
+        if previous_state == "disabled":
+            entry.config(state="normal")
+        entry.delete(0, tk.END)
+        entry.insert(0, str(value))
+        if previous_state == "disabled":
+            entry.config(state=previous_state)
 
     def start_simulation(self):
         if not self.simulation_engine.simulation_running:

@@ -7,6 +7,7 @@ class SimulationConfig:
     threshold1: float = 10.0
     threshold2: float = 30.0
     simulation_time: float = 100.0
+    uav_speed: float = 5.0
 
     def validate(self) -> None:
         if self.target_eval_mode not in {"single_visit", "revisit"}:
@@ -19,3 +20,5 @@ class SimulationConfig:
             raise ValueError("Threshold 2 must be greater than or equal to Threshold 1.")
         if self.simulation_time <= 0:
             raise ValueError("Simulation time must be positive.")
+        if self.uav_speed <= 0:
+            raise ValueError("UAV speed must be positive.")

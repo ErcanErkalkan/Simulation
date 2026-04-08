@@ -1,5 +1,6 @@
 import unittest
 
+from simulation_app.domain.goal import Goal
 from simulation_app.domain.uav import UAV
 from simulation_app.domain.vector import Vector
 from simulation_app.hardware.co_drone import co_Drone
@@ -116,6 +117,17 @@ class SimulationArchitectureTests(unittest.TestCase):
 
         self.assertEqual(Vector(0.5, 0), uav.pos)
 
+    def test_move_to_target_uses_configured_uav_speed(self):
+        uav = UAV(pos=Vector(0, 0))
+        uav.speed = 5.0
+        goal = Goal(pos=Vector(12, 0), goal_no=1)
+
+        uav.move_to_target(goal)
+
+        self.assertEqual(Vector(5, 0), uav.pos)
+        self.assertIs(goal, uav.target)
+        self.assertEqual("Free", goal.state)
+
     def test_loaded_codrone_rebinds_command_queue(self):
         engine = SimulationEngine()
         engine.register_uav_type(co_Drone)
@@ -150,6 +162,32 @@ class SimulationArchitectureTests(unittest.TestCase):
 
         self.assertIsNone(engine.move_uavs())
         self.assertTrue(engine.simulation_running)
+
+    def test_greedy_algorithm_applies_runtime_uav_speed(self):
+        engine = SimulationEngine(algorithm_name="greedy_distance")
+        engine.set_config_provider(
+            lambda: SimulationConfig(target_eval_mode="single_visit", uav_speed=6.0)
+        )
+        engine.add_uav(0, 0)
+        engine.add_goal(20, 0)
+
+        engine.start_simulation()
+        engine.move_uavs()
+
+        self.assertEqual(Vector(6, 0), engine.uavs[0].pos)
+
+    def test_connectivity_algorithm_applies_runtime_uav_speed(self):
+        engine = SimulationEngine(algorithm_name="connectivity_current")
+        engine.set_config_provider(
+            lambda: SimulationConfig(target_eval_mode="single_visit", uav_speed=7.0)
+        )
+        engine.add_uav(0, 0)
+        engine.add_goal(20, 0)
+
+        engine.start_simulation()
+        engine.move_uavs()
+
+        self.assertEqual(Vector(7, 0), engine.uavs[0].pos)
 
 
 if __name__ == "__main__":

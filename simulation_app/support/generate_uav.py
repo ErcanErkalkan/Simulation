@@ -8,11 +8,11 @@ from simulation_app.domain.vector import Vector
 
 class GenerateUAV:
     """
-    Provides functionality to generate UAVs with random positions forming a single connected component.
+    Generates UAV positions while keeping the swarm within one connected component.
     """
 
-    COMM_FACTOR = 0.9  # Factor to adjust the communication threshold
-    MAX_ATTEMPTS = 1000  # Maximum number of attempts to find a valid position
+    COMM_FACTOR = 0.9
+    MAX_ATTEMPTS = 1000
 
     @staticmethod
     def run(
@@ -21,112 +21,57 @@ class GenerateUAV:
         ground: Optional[Ground] = None,
         canvas_width: int = 800,
         canvas_height: int = 600,
-        reference_position: Optional[Vector] = None,  # <-- EKLENDİ
+        reference_position: Optional[Vector] = None,
     ) -> List[UAV]:
-        """
-        Generates UAVs forming a single connected component within the communication threshold.
-
-        :param count: The number of UAVs to generate.
-        :param comm_thr: The communication threshold for UAVs.
-        :param ground: The ground object to include in the connected component (optional).
-        :param color: The color of the UAVs.
-        :param canvas_width: The width of the canvas.
-        :param canvas_height: The height of the canvas.
-        :return: A list of UAVs forming a single connected component.
-        """
         if count <= 0:
             raise ValueError("Count must be a positive integer.")
         if comm_thr <= 0:
-            raise ValueError(
-                "Communication threshold must be a positive number.")
+            raise ValueError("Communication threshold must be a positive number.")
         if canvas_width <= 0 or canvas_height <= 0:
             raise ValueError("Canvas dimensions must be positive integers.")
 
+        primary_ref = None
+        if ground is not None:
+            primary_ref = ground.pos
+        elif reference_position is not None:
+            primary_ref = reference_position
+
         uavs: List[UAV] = []
-        
 
-        # Add ground object as a reference point if provided
-        if ground:
-            primary_ref = ground.pos 
-        else:
-            primary_ref = reference_position if reference_position else None
-
-        # Place the first UAV relative to the ground or randomly
-        if primary_ref:
+        if primary_ref is not None:
             x, y = GenerateUAV.generate_position_near_point(
-                primary_ref.x, primary_ref.y, comm_thr, canvas_width, canvas_height
+                primary_ref.x,
+                primary_ref.y,
+                comm_thr,
+                canvas_width,
+                canvas_height,
             )
         else:
             x = random.uniform(0, canvas_width)
             y = random.uniform(0, canvas_height)
 
-        uav = UAV(pos=Vector(x, y), uav_no=1, ground=ground)
-        uavs.append(uav)
+        uavs.append(UAV(pos=Vector(x, y), uav_no=1, ground=ground))
 
-        # Generate additional UAVs
-        for i in range(1, count):
+        for index in range(2, count + 1):
             x, y = GenerateUAV.generate_position_relative_to_existing(
-                uavs, comm_thr, primary_ref, canvas_width, canvas_height
+                uavs=uavs,
+                comm_thr=comm_thr,
+                primary_ref=primary_ref,
+                canvas_width=canvas_width,
+                canvas_height=canvas_height,
             )
-            new_uav = UAV(pos=Vector(x, y), uav_no=i + 1, ground=ground)
-            uavs.append(new_uav)
+            uavs.append(UAV(pos=Vector(x, y), uav_no=index, ground=ground))
 
         return uavs
 
     @staticmethod
-    def generate_position_relative_to_existing(
-        uavs: List[UAV],
+    def generate_position_near_point(
+        x0: float,
+        y0: float,
         comm_thr: float,
-        ground_position: Optional[Vector],
         canvas_width: int,
         canvas_height: int,
     ) -> Tuple[float, float]:
-        """
-        Generates a position relative to existing UAVs or the ground to maintain a single connected component.
-
-        :param uavs: List of existing UAVs.
-        :param comm_thr: Communication threshold.
-        :param ground_position: Position of the ground object (if any).
-        :param canvas_width: Width of the canvas.
-        :param canvas_height: Height of the canvas.
-        :return: A tuple representing the (x, y) position.
-        """
-        attempts = 0
-        while attempts < GenerateUAV.MAX_ATTEMPTS:
-            x = random.uniform(0, canvas_width)
-            y = random.uniform(0, canvas_height)
-
-            # Check distance to existing UAVs
-            for uav in uavs:
-                distance = uav.pos.distance_to(Vector(x, y))
-                if distance < comm_thr * GenerateUAV.COMM_FACTOR:
-                    return x, y
-
-            # If ground exists, check distance to ground as well
-            if ground_position:
-                distance_to_ground = ground_position.distance_to(Vector(x, y))
-                if distance_to_ground < comm_thr * GenerateUAV.COMM_FACTOR:
-                    return x, y
-
-            attempts += 1
-
-        raise RuntimeError(
-            "Failed to generate a valid UAV position within the maximum number of attempts.")
-
-    @staticmethod
-    def generate_position_near_point(
-        x0: float, y0: float, comm_thr: float, canvas_width: int, canvas_height: int
-    ) -> Tuple[float, float]:
-        """
-        Generates a position near a specific point (e.g., the ground) within the communication threshold.
-
-        :param x0: X-coordinate of the reference point.
-        :param y0: Y-coordinate of the reference point.
-        :param comm_thr: Communication threshold.
-        :param canvas_width: Width of the canvas.
-        :param canvas_height: Height of the canvas.
-        :return: A tuple representing the (x, y) position.
-        """
         attempts = 0
         while attempts < GenerateUAV.MAX_ATTEMPTS:
             x_min = max(0, x0 - comm_thr)
@@ -135,17 +80,44 @@ class GenerateUAV:
             y_max = min(canvas_height, y0 + comm_thr)
 
             if x_min >= x_max or y_min >= y_max:
-                # Fallback to full canvas range
                 x_min, x_max = 0, canvas_width
                 y_min, y_max = 0, canvas_height
 
             x = random.uniform(x_min, x_max)
             y = random.uniform(y_min, y_max)
-
             if 0 <= x <= canvas_width and 0 <= y <= canvas_height:
+                return x, y
+            attempts += 1
+
+        raise RuntimeError("Failed to place UAV near the reference point.")
+
+    @staticmethod
+    def generate_position_relative_to_existing(
+        uavs: List[UAV],
+        comm_thr: float,
+        primary_ref: Optional[Vector],
+        canvas_width: int,
+        canvas_height: int,
+    ) -> Tuple[float, float]:
+        attempts = 0
+        factor = GenerateUAV.COMM_FACTOR
+
+        while attempts < GenerateUAV.MAX_ATTEMPTS:
+            x = random.uniform(0, canvas_width)
+            y = random.uniform(0, canvas_height)
+            new_pos = Vector(x, y)
+
+            found_connection = any(
+                (new_pos - existing_uav.pos).length() < comm_thr * factor
+                for existing_uav in uavs
+            )
+
+            if not found_connection and primary_ref is not None:
+                found_connection = (new_pos - primary_ref).length() < comm_thr * factor
+
+            if found_connection:
                 return x, y
 
             attempts += 1
 
-        raise RuntimeError(
-            "Failed to generate a valid UAV position near the specified point within the maximum number of attempts.")
+        raise RuntimeError("Failed to place UAV inside one connected component.")
