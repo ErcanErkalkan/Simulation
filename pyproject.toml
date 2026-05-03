@@ -5,9 +5,41 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "heterogeneous-network-simulation"
 version = "0.1.0"
-description = "Heterogeneous UAV network simulation with pluggable algorithms."
+description = "Heterogeneous UAV network simulation with pluggable algorithms for autonomous flying ad hoc networks."
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Ercan Erkalkan", email = "ercan.erkalkan@example.com" },
+]
+maintainers = [
+    { name = "Ercan Erkalkan", email = "ercan.erkalkan@example.com" },
+]
+keywords = [
+    "UAV",
+    "drone",
+    "simulation",
+    "routing",
+    "FANET",
+    "autonomous",
+    "flying ad hoc network",
+    "algorithm",
+    "network",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
@@ -15,12 +47,23 @@ dependencies = [
 
 [project.optional-dependencies]
 codrone = [
-    "codrone-edu",
+    "codrone-edu>=2.0",
 ]
 tello = [
-    "djitellopy",
-    "opencv-python",
+    "djitellopy>=2.5.0",
+    "opencv-python>=4.8.0",
 ]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/ErcanErkalkan/Simulation"
+"Documentation" = "https://github.com/ErcanErkalkan/Simulation/blob/main/README.md"
+"Repository" = "https://github.com/ErcanErkalkan/Simulation.git"
+"Bug Tracker" = "https://github.com/ErcanErkalkan/Simulation/issues"
+"Related Publication" = "https://doi.org/10.3390/s24237859"
 
 [project.scripts]
 simulation-ui = "simulation_app.ui.main_window:main"
@@ -32,3 +75,6 @@ include = [
     "algorithms*",
     "user_algorithms*",
 ]
+
+[tool.setuptools]
+include-package-data = true

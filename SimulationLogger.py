@@ -1,3 +1,21 @@
+"""Simulation event logging and tracking system.
+
+This module provides logging functionality for tracking key events and statistics
+during simulation execution. It logs events to both console and file with
+proper UTF-8 encoding to handle special characters correctly.
+
+Classes:
+    SimulationLogger: Logger for simulation events and statistics
+
+Example:
+    >>> logger = SimulationLogger()
+    >>> logger.log("UAV assigned to goal 1")
+    >>> logger.summary()
+
+The logger writes to 'simulation_log.txt' and automatically handles encoding
+issues that can occur on Windows systems.
+"""
+
 import time
 import os
 import sys

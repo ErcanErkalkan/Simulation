@@ -1,3 +1,21 @@
+"""Core simulation engine for heterogeneous UAV networks.
+
+This module provides the main SimulationEngine class that orchestrates
+simulation execution, manages entities (UAVs, goals, ground stations),
+and executes routing algorithms.
+
+Classes:
+    SimulationEngine: Main simulation engine coordinating all simulation aspects.
+
+Example:
+    >>> from simulation_core import SimulationEngine
+    >>> engine = SimulationEngine()
+    >>> engine.add_goal(500, 500)
+    >>> engine.generate_ground(0, 0)
+    >>> # Add UAVs and step through simulation
+    >>> engine.step()
+"""
+
 from __future__ import annotations
 
 import time
