@@ -1,20 +1,10 @@
 {
   "title": "Heterogeneous Network Simulation for Return-Visit-Aware FANET Routing",
-  "description": "A modular simulation environment for autonomous flying ad hoc networks (FANETs) with pluggable routing algorithms and support for both simulated and real-world UAV hardware. This framework supports heterogeneous UAV networks, real drone integration (DJI Tello, CoDrone), and provides a graphical user interface for simulation control.",
+  "description": "A modular simulation environment for autonomous flying ad hoc networks (FANETs) with pluggable routing algorithms and support for both simulated and real-world UAV hardware (DJI Tello, CoDrone).",
   "creators": [
     {
       "name": "Erkalkan, Ercan",
-      "affiliation": "Department of Computer Engineering"
-    }
-  ],
-  "contributors": [
-    {
-      "name": "Topuz, Vedat",
-      "type": "Advisor"
-    },
-    {
-      "name": "Buldu, Ali",
-      "type": "Advisor"
+      "orcid": ""
     }
   ],
   "keywords": [
@@ -23,43 +13,14 @@
     "simulation",
     "routing",
     "FANET",
-    "autonomous flying networks",
-    "network simulation",
+    "ad hoc networks",
     "algorithm framework"
   ],
   "license": "MIT",
   "upload_type": "software",
-  "publication_date": "2026-05-03",
   "version": "0.1.0",
   "language": "eng",
-  "related_identifiers": [
-    {
-      "identifier": "10.3390/s24237859",
-      "relation": "isSupplementedBy",
-      "resource_type": "publication-article"
-    },
-    {
-      "identifier": "https://github.com/ErcanErkalkan/Simulation",
-      "relation": "isDocumentedBy",
-      "resource_type": "software"
-    }
-  ],
-  "subjects": [
-    {
-      "term": "Autonomous systems",
-      "identifier": "https://www.wikidata.org/wiki/Q1434997"
-    },
-    {
-      "term": "Network simulation",
-      "identifier": "https://www.wikidata.org/wiki/Q2989157"
-    },
-    {
-      "term": "Routing protocols",
-      "identifier": "https://www.wikidata.org/wiki/Q3394202"
-    },
-    {
-      "term": "Computer networks",
-      "identifier": "https://www.wikidata.org/wiki/Q570090"
-    }
+  "references": [
+    "Erkalkan, E., Topuz, V., & Buldu, A. (2024). Addressing the Return Visit Challenge in Autonomous Flying Ad Hoc Networks Linked to a Central Station. Sensors, 24(23), 7859."
   ]
 }
