@@ -1,26 +1,21 @@
 {
   "title": "Heterogeneous Network Simulation for Return-Visit-Aware FANET Routing",
-  "description": "A modular simulation environment for autonomous flying ad hoc networks (FANETs) with pluggable routing algorithms and support for both simulated and real-world UAV hardware (DJI Tello, CoDrone).",
+  "description": "A modular simulation environment for autonomous flying ad hoc networks (FANETs) with pluggable routing algorithms and support for both simulated and real-world UAV hardware (DJI Tello, CoDrone). Framework for heterogeneous UAV network simulation with custom algorithm support.",
   "creators": [
     {
-      "name": "Erkalkan, Ercan",
-      "orcid": ""
+      "name": "Erkalkan, Ercan"
     }
   ],
   "keywords": [
     "UAV",
-    "drone",
-    "simulation",
-    "routing",
+    "Drone Simulation",
     "FANET",
-    "ad hoc networks",
-    "algorithm framework"
+    "Routing Algorithms",
+    "Flying Ad Hoc Networks",
+    "Autonomous Systems",
+    "Network Simulation"
   ],
   "license": "MIT",
   "upload_type": "software",
-  "version": "0.1.0",
-  "language": "eng",
-  "references": [
-    "Erkalkan, E., Topuz, V., & Buldu, A. (2024). Addressing the Return Visit Challenge in Autonomous Flying Ad Hoc Networks Linked to a Central Station. Sensors, 24(23), 7859."
-  ]
+  "version": "0.1.0"
 }
